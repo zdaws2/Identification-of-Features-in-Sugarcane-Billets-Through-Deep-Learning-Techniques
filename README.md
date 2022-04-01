@@ -10,7 +10,7 @@ Detectron2 provided the most flexability and realiable data to produce a deep le
 
 ![image](https://user-images.githubusercontent.com/95267711/161190700-e1643667-52c2-4c7e-89c9-9ce2c6ece5a1.png)
       
-      Figure 1. Poly segmented billets, labelled with features; Broken, Pulpy, Rind-Missing, Small, Split, Sound and Squashed-Ends, respectively.
+Figure 1. Poly segmented billets, labelled with features; Broken, Pulpy, Rind-Missing, Small, Split, Sound and Squashed-Ends, respectively.
 
 Table 1. Multi-feature classifications trained off Mask R-CNN using X101-FPN baseline, in instance segmentation for Sound, Split, Small, Broken and Rind-Missing. Training produced overall AP50 with IoU50 for each multi-feature model for bounding box and mask detections. Ticks denote active classes used in each model. 
 ![image](https://user-images.githubusercontent.com/95267711/161191397-ff2ebe32-a88e-4b31-ac3c-97f486310a61.png)
