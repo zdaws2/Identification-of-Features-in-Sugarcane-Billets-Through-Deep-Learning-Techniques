@@ -1,0 +1,74 @@
+from IPython.core.pylabtools import figsize
+from detectron2.data import DatasetCatalog, MetadataCatalog
+from detectron2.utils.visualizer import Visualizer
+from detectron2.config import get_cfg
+from detectron2 import model_zoo
+
+from detectron2.utils.visualizer import ColorMode
+import os
+import json
+import cv2
+import random
+import matplotlib.pyplot
+import pickle
+
+import numpy as np
+from PIL import Image
+from darwin.torch.utils import detectron2_register_dataset
+from detectron2 import model_zoo
+from detectron2.model_zoo import get_config
+from detectron2.config import get_cfg
+from detectron2.config import LazyConfig
+from detectron2.data import MetadataCatalog, build_detection_test_loader
+from detectron2.engine import DefaultPredictor
+from detectron2.engine import DefaultTrainer
+from detectron2.evaluation import COCOEvaluator, inference_on_dataset
+from detectron2.utils.logger import setup_logger
+from detectron2.utils.visualizer import Visualizer
+from detectron2.utils.visualizer import ColorMode
+import random
+import cv2
+import matplotlib.pyplot as plt
+
+import detectron2
+'''''''''
+def plot_samples(dataset_name, n=1):
+    dataset_custom = DatasetCatalog.get(dataset_name)
+    data_custom_metadata = MetadataCatalog.get(dataset_name)
+
+    for s in random.sample(dataset_custom, n):
+        img = cv2.imread(s["file_name"])
+        v = Visualizer(img[:, :, ::-1], metadata=data_custom_metadata, scale=0.5)
+        v = v.draw_dataset_dict(s)
+        plt.figure(figsize(15, 20))
+        plt.imshow(v.get_image())
+        plt.show()
+'''''''''
+
+
+def on_image(image_path, predictor):
+    im = cv2.imread(image_path)
+    output = predictor(im)
+    v = Visualizer(im[:, :, ::-1], metadata={}, scale=0.5, instance_mode=ColorMode.SEGMENTATION)
+    v = v.draw_instance_predictions(output["instances"].to("cpu"))
+
+    plt.figure((figsize(14, 10)))
+    plt.imshow(v.get_image())
+    plt.show()
+def on_video(video_path, predictor):
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print("Error opening file...")
+        return
+    (success, image) = cap.read()
+    while success:
+        predictions = predictor(image)
+        v = Visualizer(image[:, :, ::-1], metadata={}, scale=0.5, instance_mode=ColorMode.SEGMENTATION)
+        output = v.draw_instance_predictions(predictions["instances"].to("cpu"))
+
+        cv2.imshow("Result", output.get_image()[:, :, ::-1])
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
+            break
+        (success, image) = cap.read()
