@@ -1,0 +1,76 @@
+import os
+import numpy as np
+# import some common Detectron2 and Darwin utilities
+from PIL import Image
+from detectron2.engine import DefaultPredictor
+from detectron2.utils.visualizer import Visualizer
+from detectron2.utils.logger import setup_logger
+from detectron2 import model_zoo
+from detectron2.engine import DefaultTrainer
+from detectron2.config import get_cfg
+from detectron2.data import MetadataCatalog, build_detection_test_loader
+from detectron2.evaluation import COCOEvaluator, inference_on_dataset
+from darwin.torch.utils import detectron2_register_dataset
+from testing import *
+
+setup_logger()
+# Register both training and validation sets
+dataset_id = 'griffith-hub-engineering/billets:strong-sound-split-broken-small'
+dataset_train = detectron2_register_dataset(dataset_id, partition='train', split_type='random')
+dataset_val = detectron2_register_dataset(dataset_id, partition='val', split_type='random')
+
+# Set up training configuration and train the model
+cfg = get_cfg()
+
+cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_X_101_32x8d_FPN_3x.yaml"))
+cfg.DATASETS.TRAIN = (dataset_train,)
+cfg.DATASETS.TEST = (dataset_val,)
+
+cfg.DATALOADER.NUM_WORKERS = 8
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_X_101_32x8d_FPN_3x.yaml")
+
+cfg.INPUT.MAX_SIZE_TEST = 1700
+cfg.INPUT.MAX_SIZE_TRAIN = 1700
+cfg.SOLVER.IMS_PER_BATCH = 2  # batch size
+cfg.SOLVER.BASE_LR = 0.001  # pick a good LR # reviewing tot loss curve, learning rate is not variable from first
+# instance of training, ie; the training rate will return to 0.0008 even if set to 0.000008
+cfg.SOLVER.MAX_ITER = 200800  # 40 epochs
+cfg.SOLVER.STEPS = (160640, 180720)  # milestones where the LR is reduced by MAX_ITER * 0.8 & MAX_ITER * 0.9
+cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 256
+cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(MetadataCatalog.get(dataset_train).thing_classes)
+cfg.SOLVER.CHECKPOINT_PERIOD = 20000
+
+# Instantiate the trainer and train the model
+os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+trainer = DefaultTrainer(cfg)
+trainer.resume_or_load(resume=True)
+trainer.train()
+
+# Evaluate the model
+cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
+evaluator = COCOEvaluator(dataset_val, cfg, False, output_dir="./output/")
+val_loader = build_detection_test_loader(cfg, dataset_val)
+inference_on_dataset(trainer.model, val_loader, evaluator)
+
+def plot_samples(dataset_name, n=1):
+    dataset_custom = DatasetCatalog.get(dataset_name)
+    data_custom_metadata = MetadataCatalog.get(dataset_name)
+    # us inference on images using the model that was just trained
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set a custom testing threshold, ie; any object below confidence %
+    # won't be displayed
+    cfg.MODEL.DEVICE = "cuda"
+    predictor = DefaultPredictor(cfg)
+    print(inference_on_dataset(predictor.model, val_loader, evaluator))
+
+    for s in random.sample(dataset_custom, n):
+        img = cv2.imread(s["file_name"])
+        predictors = predictor(img)
+        v = Visualizer(img[:, :, ::-1], metadata=data_custom_metadata, instance_mode=ColorMode.IMAGE_BW)
+        v = v.draw_instance_predictions(predictors["instances"].to("cpu"))
+        plt.figure((figsize(14, 10)))
+        plt.imshow(v.get_image())
+        plt.show()
+        print(predictors["instances"].pred_classes)
+        print(predictors["instances"].pred_boxes)
+
+plot_samples(dataset_name=dataset_train, n=10)
